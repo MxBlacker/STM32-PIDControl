@@ -505,6 +505,16 @@
               <FileType>1</FileType>
               <FilePath>.\Header\Timer.c</FilePath>
             </File>
+            <File>
+              <FileName>Serial.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Header\Serial.c</FilePath>
+            </File>
+            <File>
+              <FileName>Serial.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\Header\Serial.h</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>

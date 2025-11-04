@@ -17,13 +17,15 @@ typedef struct{
 //存选项文本
 	
 	short option_mode[4];			
-//存选项模式 见下面的enum
+//存选项模式
+//pure_text , subinterface , editable , interactible , none
 	
 	int option_value[4];				
 //存选项的值，如果有的话
 	
 	short value_mode;
-//值的模式，见下面的enum
+//值的模式
+//fraction , integer , nan
 	
 	int value_range[4];
 //值的范围，如果有的话
@@ -31,17 +33,21 @@ typedef struct{
 	short value_length;
 //值的显示长度，如果有的话
 	
+/*
+	MENU_MAIN , MENU_LED , MENU_PID , MENU_IMAGE , MENU_ANGLE , NONE
+*/
+
 	short super_interface;				
-//存父级的索引，见下面的enum
+//存父级的索引
 	
 	short subinterface[4];				
 //存子集的索引，如果有的话
 	
 	short allow_Edit;
-//是否允许为编辑模式
+//是否允许为编辑模式 0 , 1
 	
 	short allow_title;
-//判断是否需要标题
+//判断是否需要标题 0 , 1
 
 	char title[20];
 //标题，如果有的话
@@ -70,6 +76,7 @@ enum value_mode{
 	integer,
 	nan
 };
+
 /*
 	下面就是对界面的定义了，这就叫Expandibility!这就叫Customizable!
 */
@@ -147,7 +154,15 @@ enum INTERACT_STATE{SELECT_MODE,EDIT_MODE};
 short current_state;
 short current_selection;
 short current_interface;
-short temp_pos; //赫赫你永远不会知道这是干嘛的
+short temp_pos; //赫赫你猜这个是干嘛的
+
+/*
+==============================================================================================
+
+									以下是显示函数
+
+==============================================================================================
+*/
 
 void interface_init(void){
 	

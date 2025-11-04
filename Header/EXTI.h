@@ -1,3 +1,6 @@
+/*
+	这个头文件主要是EXTI的初始化和EXTI中断函数
+*/
 #ifndef __EXTI_H_MXB
 #define __EXTI_H_MXB
 
