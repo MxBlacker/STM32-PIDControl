@@ -8,5 +8,6 @@ void Serial_SendString(char * String);
 void Serial_Printf(char * format, ...);
 void Serial_SendPack(void);
 uint8_t Serial_GetRxFlag(void);
+int16_t Transfer_RxData(void);
 
 #endif

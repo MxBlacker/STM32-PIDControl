@@ -4,7 +4,7 @@
 
 #include "Initialization.h"
 
-uint8_t Serial_RxData[2]; //第一位符号位
+uint8_t Serial_RxData[5]; //虽然我给了十位的空间，但是由于速度在-100到100间，所以实际上需要用到的应该就4位，第五位用来存长度的hhh
 char Serial_TxData[10]; //自定义信息idk
 
 void USART1_Serial_Init(void){
@@ -69,13 +69,27 @@ void Serial_SendPack(void){
 
 static int Serial_RxFlag = 0;
 
-
 uint8_t Serial_GetRxFlag(void){
 	if(Serial_RxFlag == 1){
 		Serial_RxFlag = 0;
 		return 1;
 	}
 	return 0;
+}
+
+int16_t Transfer_RxData(void){	
+	
+	int index = 0 , sign = 1 , Length = Serial_RxData[4];
+	if(Serial_RxData[index] == '-'){
+		sign = -1; index++;
+	} 
+	
+	int16_t num_data = 0;
+	for(;index < Length;index++){
+		num_data += num_data * 10 + (Serial_RxData[index] - '0');
+	}
+
+	return num_data * sign;
 }
 
 void USART1_IRQHandler(void){
@@ -93,13 +107,10 @@ void USART1_IRQHandler(void){
 		}else if(Rx_State == 1){ 		//读取数据
 			Serial_RxData[index] = RxData;
 			index ++;
-			if(index >= 4){
-				Rx_State = 2;
-			}
-		}else if(Rx_State == 2){ 		//等待包尾
-			if(RxData == '%'){
+			if(index >= 4 || RxData == '%'){
 				Rx_State = 0;
 				Serial_RxFlag = 1;
+				Serial_RxData[4] = index;
 			}
 		}
 		USART_ClearITPendingBit(USART1, USART_IT_RXNE);

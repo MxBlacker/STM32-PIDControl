@@ -6,7 +6,14 @@
 #ifndef __TIMER_FUCK
 #define __TIMER_FUCK
 
-void TIMx_Init(TIM_TypeDef * TIMx , uint16_t Period,uint16_t Prescaler);
-void TIM2_EncoderInterfaceInit(void);
+enum TIM_MODE{
+	IC_MODE,
+	OC_MODE,
+	ENCODER_MODE,
+	INTERRUPT_MODE
+};
+
+void TIMx_Init(TIM_TypeDef * TIMx , uint16_t Period , uint16_t Prescaler , uint8_t mode , uint8_t channel);
+void Set_OC_Speed(TIM_TypeDef * TIMx ,uint8_t channel , uint8_t CCR_value);
 	
 #endif
