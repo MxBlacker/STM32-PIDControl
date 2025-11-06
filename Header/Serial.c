@@ -4,8 +4,8 @@
 
 #include "Initialization.h"
 
-uint8_t Serial_RxData[6]; //虽然我给了十位的空间，但是由于速度在-100到100间，所以实际上需要用到的应该就4位，第五位用来存长度的hhh
-char Serial_TxData[10]; //自定义信息idk
+uint8_t Serial_RxData[6]; //虽然我给了六位的空间，但是由于速度在-1000到1000间，所以实际上需要用到的应该就5位
+char Serial_TxData[10]; //自定义信息idk，感觉p用没有，但是
 
 void USART1_Serial_Init(void){
 	
@@ -67,8 +67,12 @@ void Serial_SendPack(void){
 
 }
 
-int Serial_RxFlag = 0;
+/*
+	Serial_GetRxFlag();
+	如果调用函数时读到Flag为1，那就直接去拿RxData里的值就行了
+*/
 
+int Serial_RxFlag = 0;
 uint8_t Serial_GetRxFlag(void){
 	if(Serial_RxFlag == 1){
 		Serial_RxFlag = 0;
@@ -76,6 +80,11 @@ uint8_t Serial_GetRxFlag(void){
 	}
 	return 0;
 }
+
+/*
+	Transfer_RxData(void);
+	经典的字符串转数字函数
+*/
 
 int16_t Transfer_RxData(void){	
 	
@@ -92,6 +101,10 @@ int16_t Transfer_RxData(void){
 	
 	return num_data * sign;
 }
+
+/*
+	状态机，由于长度不确定，所以就俩状态
+*/
 
 void USART1_IRQHandler(void) {
     static uint8_t Rx_State = 0;

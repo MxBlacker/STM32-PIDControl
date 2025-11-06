@@ -17,24 +17,28 @@ uint16_t Motor_Right_Speed;
 
 int main(void){
 	
-	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB , ENABLE);
-	
+	//控制电机方向的口
 	AutoInitGPIO(GPIOB,GPIO_Mode_Out_PP,GPIO_Pin_12,GPIO_Speed_50MHz);
 	AutoInitGPIO(GPIOB,GPIO_Mode_Out_PP,GPIO_Pin_13,GPIO_Speed_50MHz);
 	AutoInitGPIO(GPIOB,GPIO_Mode_Out_PP,GPIO_Pin_14,GPIO_Speed_50MHz);
 	AutoInitGPIO(GPIOB,GPIO_Mode_Out_PP,GPIO_Pin_15,GPIO_Speed_50MHz);
 	
+	//USART初始化
 	USART1_Serial_Init();
 	
+	//TIM2~TIM4初始化，其中TIM2用于中断，1,2口用来干啥我忘了，3，4口输出方波
+	//TIM3，TIM4Encoder接速度
 	TIMx_Init(TIM2 , 1000 , 72 , OC_MODE , 3);				//输出左轮
 	TIMx_Init(TIM2 , 1000 , 72 , OC_MODE , 4);				//右轮
 	TIMx_Init(TIM2 , 1000 , 72 , INTERRUPT_MODE , 0);		//启动中断
 	TIMx_Init(TIM3 , 65535 , 1 , ENCODER_MODE , 0);			//读左轮
 	TIMx_Init(TIM4 , 65535 , 1 , ENCODER_MODE , 0);			//读右轮
 	
+	//OLED调试用的
 	OLED_Init();
 	OLED_Clear();
 	
+	//Left参数
 	Left_PID.KP = 2;
 	Left_PID.KI = 1;
 	Left_PID.KD = 1;
@@ -42,6 +46,7 @@ int main(void){
 	Left_PID.I_Lim = 1000;
 	Left_PID.Output_Lim = 1000;
 	
+	//Right参数
 	Right_PID.KP = 2;
 	Right_PID.KI = 1;
 	Right_PID.KD = 1;
@@ -49,6 +54,7 @@ int main(void){
 	Right_PID.I_Lim = 1000;
 	Right_PID.Output_Lim = 1000;
 	
+	//一些基本的初始化
 	Left_Motor.Prev_Count = 0; 
 	Left_Motor.Cur_Count = 0; 
 	Left_Motor.Target_Speed = 0;
@@ -57,27 +63,27 @@ int main(void){
 	
 	while(1){
 		
-		Delay_ms(10);
-		
-		if(TASK_MODE == 0){
+		Delay_ms(10);														//更稳定一点，太快了会有点问题
+	
+		if(TASK_MODE == 0){													//TASK1
 			OLED_ShowNum(1,15,1,1);
-			if(Freq_Counter >= 10){								//10ms传输一次
-				Freq_Counter = 0;
+			if(Freq_Counter >= 10){											//上传	
+				Freq_Counter = 0;		
 				Motor_Left_Speed = (int16_t)Motor_Get_Left_Frequency();
 				Motor_Right_Speed = (int16_t)Motor_Get_Right_Frequency();
 							
 				OLED_ShowNum(1,1,(int)Left_Motor.Target_Speed,5);
 				OLED_ShowNum(2,1,(int)Motor_Get_Left_Frequency(),5);
-				//Serial_Printf("%.1f",Left_Motor.Cur_Speed);
+				Serial_Printf("Cur_Speed : %.1f\n",Left_Motor.Cur_Speed);	//FireWater协议是这样的= =
 			}
 		
-			if(Serial_GetRxFlag() == 1){					//接收到数据了
+			if(Serial_GetRxFlag() == 1){									//接收到数据了
 				Left_PID.I = 0;
 				Motor_Set_Target_Speed(&Left_Motor,Transfer_RxData());
-				Serial_Printf("True = %d",Left_Motor.Target_Speed);
+				//Serial_Printf("True = %d",Left_Motor.Target_Speed);
 			}
 		}
-		else if(TASK_MODE == 1){
+		else if(TASK_MODE == 1){											//TASK2
 			OLED_ShowNum(1,15,2,1);
 		}
 	}

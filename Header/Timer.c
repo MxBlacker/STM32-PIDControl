@@ -5,6 +5,11 @@
 #include "Serial.h"
 #include "OLED.h"
 
+/*
+	TIMx_Init(TIMx , Period , Prescaler , TIM_MODE , channel)
+	用于自动初始化TIMx端口
+*/
+
 enum TIM_MODE{
 	IC_MODE,
 	OC_MODE,
@@ -44,13 +49,8 @@ void TIMx_Init(TIM_TypeDef * TIMx , uint16_t Period , uint16_t Prescaler , uint8
 		case OC_MODE:
 			{
 			//OC_MODE和IC_MODE理应来讲时可以覆盖在INTERRUPT_MODE上的
-			//TImx_Init(TIM2 , 1000 , 720 , OC_MODE , 3);
-			//TImx_Init(TIM2 , 1000 , 720 , OC_MODE , 4);
-			
-			//TIM_TimeBaseInitTypeDef上面做过了
-			//用你屁股想一下，我们Counter和分频分别写100和720可以获得100的分辨率，也就是分为100份数
-			//而这100份是被平均分配在1/1000秒内的，所以CCR设50就可以获得50%的占空比
-			//接下来是OC的初始化
+			//TImx_Init(TIM2 , 1000 , 72 , OC_MODE , 3);
+			//TImx_Init(TIM2 , 1000 , 72 , OC_MODE , 4);
 			
 			AutoInitGPIO(GPIOA , GPIO_Mode_AF_PP , GPIO_Pin_2 , GPIO_Speed_50MHz);
 			AutoInitGPIO(GPIOA , GPIO_Mode_AF_PP , GPIO_Pin_3 , GPIO_Speed_50MHz);
@@ -142,6 +142,11 @@ void TIMx_Init(TIM_TypeDef * TIMx , uint16_t Period , uint16_t Prescaler , uint8
 	TIM_Cmd(TIMx , ENABLE);
 }
 
+/*
+	Set_OC_value(TIMx , channel , CCR_value);
+	其实是设置电机速度的
+*/
+
 void Set_OC_value(TIM_TypeDef * TIMx ,uint8_t channel , int CCR_value){
 	
 	switch(channel){
@@ -163,32 +168,29 @@ extern int TASK_MODE;
 MotorTypeDef Left_Motor,Right_Motor;
 PIDTypeDef Left_PID,Right_PID;
 
-int state = 0;
-
-
 void TIM2_IRQHandler(void){
 	if (TIM_GetITStatus(TIM2, TIM_IT_Update) != RESET)
     {
 		Freq_Counter++;
 		Button_Check(GPIOA , GPIO_Pin_0 , 0);
 		
-		if(TASK_MODE == 0){
+		if(TASK_MODE == 0){																				//TASK1	
 			
 			Left_Motor.Counter++;
 			
 			if(Left_Motor.Counter >= 10){
 				
-				Cal_Current_Speed(&Left_Motor , TIM3);
+				Cal_Current_Speed(&Left_Motor , TIM3);													//看看左电机多块
 				
-				float Delta_Speed = PID_Control(&Left_Motor , &Left_PID);
-				Set_Left_Motor_Speed(Left_Motor.Target_Speed + Delta_Speed);
+				float Delta_Speed = PID_Control(&Left_Motor , &Left_PID);								//如果和目标速度一样就维持，不一样就想想要往哪边动，动多少
+				Set_Left_Motor_Speed(Left_Motor.Target_Speed + Delta_Speed);							//和Target_Speed的偏差主要是为了补偿阻力！
 				
-				Serial_Printf("Current: %d Delta: %.1f",(int)Left_Motor.Cur_Speed, Delta_Speed);
+				//Serial_Printf("Current: %d Delta: %.1f",(int)Left_Motor.Cur_Speed, Delta_Speed);
 				
 				Left_Motor.Counter = 0;	
 			}
 			
-		}else{
+		}else{																							//TASK2
 			
 			Right_Motor.Counter++;
 			
@@ -197,7 +199,7 @@ void TIM2_IRQHandler(void){
 				Cal_Current_Speed(&Left_Motor , TIM3);
 				Cal_Current_Speed(&Right_Motor , TIM4);
 			
-				Motor_Set_Target_Speed(&Right_Motor , Left_Motor.Cur_Speed);
+				Motor_Set_Target_Speed(&Right_Motor , Left_Motor.Cur_Speed);							//同上
 				float Delta_Speed = PID_Control(&Right_Motor , &Right_PID);
 				Set_Right_Motor_Speed(Right_Motor.Target_Speed + Delta_Speed);
 			

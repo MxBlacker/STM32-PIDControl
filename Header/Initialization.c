@@ -11,7 +11,7 @@
 */
 
 void AutoInitGPIO(GPIO_TypeDef* GPIOx , GPIOMode_TypeDef Mode , uint16_t Pin , GPIOSpeed_TypeDef Speed){
-	if(GPIOx == NULL) return; //判断是否合法
+	if(GPIOx == NULL) return;
 	
 	if(GPIOx == GPIOA)
 		RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA,ENABLE);
