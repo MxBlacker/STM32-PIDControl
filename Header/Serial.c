@@ -4,7 +4,7 @@
 
 #include "Initialization.h"
 
-uint8_t Serial_RxData[5]; //虽然我给了十位的空间，但是由于速度在-100到100间，所以实际上需要用到的应该就4位，第五位用来存长度的hhh
+uint8_t Serial_RxData[6]; //虽然我给了十位的空间，但是由于速度在-100到100间，所以实际上需要用到的应该就4位，第五位用来存长度的hhh
 char Serial_TxData[10]; //自定义信息idk
 
 void USART1_Serial_Init(void){
@@ -13,7 +13,7 @@ void USART1_Serial_Init(void){
 	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
 
 	AutoInitGPIO(GPIOA, GPIO_Mode_AF_PP, GPIO_Pin_9, GPIO_Speed_50MHz); //Transmit
-	AutoInitGPIO(GPIOA, GPIO_Mode_AF_PP, GPIO_Pin_10, GPIO_Speed_50MHz); //Receive
+	AutoInitGPIO(GPIOA, GPIO_Mode_IPU, GPIO_Pin_10, GPIO_Speed_50MHz); //Receive
 
 	USART_InitTypeDef USART_InitStructure;
 	USART_InitStructure.USART_BaudRate = 9600; //波特率
@@ -26,7 +26,7 @@ void USART1_Serial_Init(void){
 
 	USART_ITConfig(USART1 , USART_IT_RXNE , ENABLE);
 	
-	AutoInitNVIC(NVIC_PriorityGroup_2,USART1_IRQn,1,1);
+	AutoInitNVIC(NVIC_PriorityGroup_2,USART1_IRQn,1,0);
 	
 	USART_Cmd(USART1, ENABLE);
 }
@@ -67,7 +67,7 @@ void Serial_SendPack(void){
 
 }
 
-static int Serial_RxFlag = 0;
+int Serial_RxFlag = 0;
 
 uint8_t Serial_GetRxFlag(void){
 	if(Serial_RxFlag == 1){
@@ -79,42 +79,52 @@ uint8_t Serial_GetRxFlag(void){
 
 int16_t Transfer_RxData(void){	
 	
-	int index = 0 , sign = 1 , Length = Serial_RxData[4];
+	int index = 0 , sign = 1;
 	if(Serial_RxData[index] == '-'){
 		sign = -1; index++;
 	} 
 	
 	int16_t num_data = 0;
-	for(;index < Length;index++){
-		num_data += num_data * 10 + (Serial_RxData[index] - '0');
+	for(;Serial_RxData[index] != '\0';index++){
+		//Serial_Printf("%c ",Serial_RxData[index]);
+		num_data = num_data * 10 + (Serial_RxData[index] - '0');
 	}
-
+	
 	return num_data * sign;
 }
 
-void USART1_IRQHandler(void){
-	static uint8_t Rx_State = 0;
-	static uint8_t index = 0;
-	if(USART_GetITStatus(USART1 , USART_IT_RXNE) == SET){
-		
-		uint8_t RxData = USART_ReceiveData(USART1);
-		
-		if(Rx_State == 0){ 				//等待包头
-			if(RxData == '@'){
-				Rx_State = 1;
-				index = 0;
-			}
-		}else if(Rx_State == 1){ 		//读取数据
-			Serial_RxData[index] = RxData;
-			index ++;
-			if(index >= 4 || RxData == '%'){
-				Rx_State = 0;
-				Serial_RxFlag = 1;
-				Serial_RxData[4] = index;
-			}
-		}
-		USART_ClearITPendingBit(USART1, USART_IT_RXNE);
-	}
+void USART1_IRQHandler(void) {
+    static uint8_t Rx_State = 0;
+    static uint8_t index = 0;
+    
+    if(USART_GetITStatus(USART1, USART_IT_RXNE) == SET) {
+        uint8_t RxData = USART_ReceiveData(USART1);
+        
+        switch(Rx_State) {
+			case 0: // 等待包头
+				if(RxData == '@') {
+					Rx_State = 1;
+					index = 0;
+				}
+				break;
+                
+            case 1: // 接收数据
+                if(RxData == '%') { // 收到包尾
+                    Serial_RxData[index] = '\0'; // 添加字符串结束符
+                    Rx_State = 0;
+                    Serial_RxFlag = 1;
+                } 
+                else if(index < sizeof(Serial_RxData) - 1) { // 防止数组越界
+                    Serial_RxData[index++] = RxData;
+                } 
+                else { // 数据过长，重置
+                    Rx_State = 0;
+                }
+                break;
+        }
+        
+        USART_ClearITPendingBit(USART1, USART_IT_RXNE);
+    }
 }
 
 //Serial_GetRxFlag == 1时读取数据

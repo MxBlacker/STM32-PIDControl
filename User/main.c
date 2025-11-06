@@ -3,46 +3,82 @@
 #include "Serial.h"
 #include "Timer.h"
 #include "Motor.h"
+#include "OLED.h"
+#include "Delay.h"
 
 extern uint8_t Serial_RxData[];
 extern uint8_t Freq_Counter;
+extern MotorTypeDef Left_Motor,Right_Motor;
+extern PIDTypeDef Left_PID,Right_PID;
 
-uint16_t Motor_Speed;
-
-/*
-	1. 串口传信息 √
-	2. PID
-	
-		2.1 学习PID √
-		2.2 写PID程序 
-		2.3 将PID程序应用于左轮 控制量CCR
-		
-	3. 左右轮同转
-	
-		3.1 读取左轮Freq和占空比
-		3.2 据此输出方波给右轮
-*/
+int TASK_MODE = 0;
+uint16_t Motor_Left_Speed;
+uint16_t Motor_Right_Speed;
 
 int main(void){
 	
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB , ENABLE);
+	
+	AutoInitGPIO(GPIOB,GPIO_Mode_Out_PP,GPIO_Pin_12,GPIO_Speed_50MHz);
+	AutoInitGPIO(GPIOB,GPIO_Mode_Out_PP,GPIO_Pin_13,GPIO_Speed_50MHz);
+	AutoInitGPIO(GPIOB,GPIO_Mode_Out_PP,GPIO_Pin_14,GPIO_Speed_50MHz);
+	AutoInitGPIO(GPIOB,GPIO_Mode_Out_PP,GPIO_Pin_15,GPIO_Speed_50MHz);
+	
 	USART1_Serial_Init();
-	//TIM2同时在计时
-	TIMx_Init(TIM2 , 100 , 720 , OC_MODE , 3);				//输出左轮
-	TIMx_Init(TIM2 , 1000 , 720 , OC_MODE , 4);				//输出右轮
+	
+	TIMx_Init(TIM2 , 1000 , 72 , OC_MODE , 3);				//输出左轮
+	TIMx_Init(TIM2 , 1000 , 72 , OC_MODE , 4);				//右轮
+	TIMx_Init(TIM2 , 1000 , 72 , INTERRUPT_MODE , 0);		//启动中断
 	TIMx_Init(TIM3 , 65535 , 1 , ENCODER_MODE , 0);			//读左轮
 	TIMx_Init(TIM4 , 65535 , 1 , ENCODER_MODE , 0);			//读右轮
 	
+	OLED_Init();
+	OLED_Clear();
+	
+	Left_PID.KP = 2;
+	Left_PID.KI = 1;
+	Left_PID.KD = 1;
+	Left_PID.I = 0;
+	Left_PID.I_Lim = 1000;
+	Left_PID.Output_Lim = 1000;
+	
+	Right_PID.KP = 2;
+	Right_PID.KI = 1;
+	Right_PID.KD = 1;
+	Right_PID.I = 0;
+	Right_PID.I_Lim = 1000;
+	Right_PID.Output_Lim = 1000;
+	
+	Left_Motor.Prev_Count = 0; 
+	Left_Motor.Cur_Count = 0; 
+	Left_Motor.Target_Speed = 0;
+	Right_Motor.Prev_Count = 0; 
+	Right_Motor.Cur_Count = 0; 
+	
 	while(1){
 		
-		if(Freq_Counter >= 10){								//10ms传输一次
-			Freq_Counter = 0;
-			Motor_Speed = (int16_t)Motor_Get_Frequency();
-			Serial_Printf("Speed = %d\r\n",Motor_Speed);	
-		}
+		Delay_ms(10);
 		
-		if(Serial_GetRxFlag() == 1){						//接收到数据了
-			Motor_Set_Target_Speed(Transfer_RxData());
-		}
+		if(TASK_MODE == 0){
+			OLED_ShowNum(1,15,1,1);
+			if(Freq_Counter >= 10){								//10ms传输一次
+				Freq_Counter = 0;
+				Motor_Left_Speed = (int16_t)Motor_Get_Left_Frequency();
+				Motor_Right_Speed = (int16_t)Motor_Get_Right_Frequency();
+							
+				OLED_ShowNum(1,1,(int)Left_Motor.Target_Speed,5);
+				OLED_ShowNum(2,1,(int)Motor_Get_Left_Frequency(),5);
+				//Serial_Printf("%.1f",Left_Motor.Cur_Speed);
+			}
 		
+			if(Serial_GetRxFlag() == 1){					//接收到数据了
+				Left_PID.I = 0;
+				Motor_Set_Target_Speed(&Left_Motor,Transfer_RxData());
+				Serial_Printf("True = %d",Left_Motor.Target_Speed);
+			}
+		}
+		else if(TASK_MODE == 1){
+			OLED_ShowNum(1,15,2,1);
+		}
 	}
 }

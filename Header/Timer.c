@@ -2,6 +2,8 @@
 #include "Initialization.h"
 #include "Button.h"
 #include "Motor.h"
+#include "Serial.h"
+#include "OLED.h"
 
 enum TIM_MODE{
 	IC_MODE,
@@ -13,7 +15,7 @@ enum TIM_MODE{
 void TIMx_Init(TIM_TypeDef * TIMx , uint16_t Period , uint16_t Prescaler , uint8_t mode , uint8_t channel){
 	
 	if(TIMx == TIM1)
-		RCC_APB2PeriphClockCmd(RCC_APB1Periph_TIM2, ENABLE);
+		RCC_APB2PeriphClockCmd(RCC_APB2Periph_TIM1, ENABLE);
 	else if (TIMx == TIM2) 
         RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM2, ENABLE);
     else if (TIMx == TIM3) 
@@ -50,6 +52,9 @@ void TIMx_Init(TIM_TypeDef * TIMx , uint16_t Period , uint16_t Prescaler , uint8
 			//而这100份是被平均分配在1/1000秒内的，所以CCR设50就可以获得50%的占空比
 			//接下来是OC的初始化
 			
+			AutoInitGPIO(GPIOA , GPIO_Mode_AF_PP , GPIO_Pin_2 , GPIO_Speed_50MHz);
+			AutoInitGPIO(GPIOA , GPIO_Mode_AF_PP , GPIO_Pin_3 , GPIO_Speed_50MHz);
+				
 			TIM_OCInitTypeDef TIM_OCInitStructure;
 			TIM_OCStructInit(&TIM_OCInitStructure); //因为有很多通用计时器用不到的，所以这里都给个默认值，不然值不确定
 			TIM_OCInitStructure.TIM_OCMode = TIM_OCMode_PWM1; //输出比较模式
@@ -64,6 +69,7 @@ void TIMx_Init(TIM_TypeDef * TIMx , uint16_t Period , uint16_t Prescaler , uint8
                 case 4: TIM_OC4Init(TIMx, &TIM_OCInitStructure); break;
 			}
 			break;
+			
 			}
 		case ENCODER_MODE:
 			{
@@ -95,6 +101,20 @@ void TIMx_Init(TIM_TypeDef * TIMx , uint16_t Period , uint16_t Prescaler , uint8
 			TIM_ICInit(TIMx , &TIM_ICInitStructure);
 
 			TIM_EncoderInterfaceConfig(TIMx , TIM_EncoderMode_TI12 , TIM_ICPolarity_Rising , TIM_ICPolarity_Rising);
+			
+			IRQn_Type IRQn;
+			if (TIMx == TIM3) 
+				IRQn = TIM3_IRQn;
+			else if (TIMx == TIM4) 
+				IRQn = TIM4_IRQn;
+			
+			NVIC_InitTypeDef NVIC_InitStructure;
+			NVIC_InitStructure.NVIC_IRQChannel = IRQn;
+			NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0;
+			NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;
+			NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
+			NVIC_Init(&NVIC_InitStructure);
+			
 			break;
 			}
 		case INTERRUPT_MODE:
@@ -114,39 +134,79 @@ void TIMx_Init(TIM_TypeDef * TIMx , uint16_t Period , uint16_t Prescaler , uint8
 			else if (TIMx == TIM4) 
 				IRQn = TIM4_IRQn;
 			
-			AutoInitNVIC(NVIC_PriorityGroup_2 , IRQn , 2 , 1);
+			AutoInitNVIC(NVIC_PriorityGroup_2 , IRQn , 2 , 2);
 			break;
 			}
-		
-		default:
-			return;
 	}
 	
-	TIM_Cmd(TIMx,ENABLE);
-	
+	TIM_Cmd(TIMx , ENABLE);
 }
 
-void Set_OC_Speed(TIM_TypeDef * TIMx ,uint8_t channel , uint8_t CCR_value){ //这里速度是0~100
+void Set_OC_value(TIM_TypeDef * TIMx ,uint8_t channel , int CCR_value){
+	
 	switch(channel){
 		case 1: TIM_SetCompare1(TIMx , CCR_value); break;
-		case 2: TIM_SetCompare1(TIMx , CCR_value); break;
-		case 3: TIM_SetCompare1(TIMx , CCR_value); break;
-		case 4: TIM_SetCompare1(TIMx , CCR_value); break;
+		case 2: TIM_SetCompare2(TIMx , CCR_value); break;
+		case 3: TIM_SetCompare3(TIMx , CCR_value); break;
+		case 4: TIM_SetCompare4(TIMx , CCR_value); break; 
 	}
+	
 }
-
 
 /*
 	以下为中断函数
 */
 
 uint8_t Freq_Counter = 0;
+extern int TASK_MODE;
+
+MotorTypeDef Left_Motor,Right_Motor;
+PIDTypeDef Left_PID,Right_PID;
+
+int state = 0;
+
 
 void TIM2_IRQHandler(void){
 	if (TIM_GetITStatus(TIM2, TIM_IT_Update) != RESET)
     {
 		Freq_Counter++;
 		Button_Check(GPIOA , GPIO_Pin_0 , 0);
-        TIM_ClearITPendingBit(TIM2, TIM_IT_Update);
+		
+		if(TASK_MODE == 0){
+			
+			Left_Motor.Counter++;
+			
+			if(Left_Motor.Counter >= 10){
+				
+				Cal_Current_Speed(&Left_Motor , TIM3);
+				
+				float Delta_Speed = PID_Control(&Left_Motor , &Left_PID);
+				Set_Left_Motor_Speed(Left_Motor.Target_Speed + Delta_Speed);
+				
+				Serial_Printf("Current: %d Delta: %.1f",(int)Left_Motor.Cur_Speed, Delta_Speed);
+				
+				Left_Motor.Counter = 0;	
+			}
+			
+		}else{
+			
+			Right_Motor.Counter++;
+			
+			if(Right_Motor.Counter >= 10){
+				
+				Cal_Current_Speed(&Left_Motor , TIM3);
+				Cal_Current_Speed(&Right_Motor , TIM4);
+			
+				Motor_Set_Target_Speed(&Right_Motor , Left_Motor.Cur_Speed);
+				float Delta_Speed = PID_Control(&Right_Motor , &Right_PID);
+				Set_Right_Motor_Speed(Right_Motor.Target_Speed + Delta_Speed);
+			
+				Serial_Printf("LC: %d RC: %d\r\n",(int)Left_Motor.Cur_Speed, (int)Right_Motor.Cur_Speed);
+				
+				Right_Motor.Counter = 0;	
+			}
+		}
+		
+		TIM_ClearITPendingBit(TIM2, TIM_IT_Update);
     }
 }
