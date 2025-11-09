@@ -177,6 +177,7 @@ void TIM2_IRQHandler(void){
 		if(TASK_MODE == 0){																				//TASK1	
 			
 			Left_Motor.Counter++;
+			Set_Right_Motor_Speed(0);
 			
 			if(Left_Motor.Counter >= 10){
 				
@@ -193,6 +194,7 @@ void TIM2_IRQHandler(void){
 		}else{																							//TASK2
 			
 			Right_Motor.Counter++;
+			Set_Left_Motor_Speed(0);
 			
 			if(Right_Motor.Counter >= 10){
 				
